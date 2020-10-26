@@ -1,31 +1,25 @@
 #!/bin/bash
 set -e
 
-ELECTRON_VERSION=6.1.7
+ELECTRON_VERSION=6.1.12
 NOTION_BINARY=notion.exe
 NOTION_DMG=notion.dmg
 
-if [[ $1 != win && $1 != mac ]]; then
+if [[ $1 != deb && $1 != rpm && $1 != flatpak ]] || [[ $2 != win && $2 != mac ]] || [ -z "$3" ]; then
   echo Please specify whether you would like to build a DEB package using \
-    Windows or macOS sources
-  echo Example: ./build.sh win
+    Windows or macOS sources and download link
+  echo Example: ./build.sh [deb/rpm/flatpak] [win/mac] https://desktop-release.notion-static.com/Notion%20Setup%202.0.9.exe
   exit 1
 fi
 
 # Check for Notion Windows installer
-if [ "$1" == win ] && ! [ -f $NOTION_BINARY ]; then
-  echo Notion installer missing!
-  echo Please download Notion for Windows from https://www.notion.so/desktop \
-    and place the installer in this directory as $NOTION_BINARY
-  exit 1
+if [ "$2" == win ]; then
+  wget -c $3 -O $NOTION_BINARY
 fi
 
 # Check for Notion macOS installer
-if [ "$1" == mac ] && ! [ -f $NOTION_DMG ]; then
-  echo Notion installer missing!
-  echo Please download Notion for macOS from https://www.notion.so/desktop \
-    and place the installer in this directory as $NOTION_DMG
-  exit 1
+if [ "$2" == mac ]; then
+  wget -c $3 -O $NOTION_DMG
 fi
 
 # Check for required commands
@@ -36,10 +30,29 @@ check-command() {
   fi
 }
 
-commands=(
-  node npm asar electron-packager electron-installer-debian
-  7z convert fakeroot dpkg
-)
+# Check commands for create deb package
+if [ "$1" == deb ]; then
+  commands=(
+    node npm asar electron-packager electron-installer-debian
+    7z convert fakeroot dpkg
+  )
+fi
+
+# Check commands for create rpm package
+if [ "$1" == rpm ]; then
+  commands=(
+    node npm asar electron-packager electron-installer-redhat
+    7z convert fakeroot dnf
+  )
+fi
+
+# Check commands for create flatpak package
+if [ "$1" == flatpak ]; then
+  commands=(
+    node npm asar electron-packager electron-installer-flatpak
+    7z convert fakeroot flatpak flatpak-builder
+  )
+fi
 
 for command in "${commands[@]}"; do
   check-command "$command"
@@ -48,7 +61,7 @@ done
 # Setup the build directory
 mkdir -p build
 
-if [ "$1" == win ]; then
+if [ "$2" == win ]; then
   # Extract the Notion executable
   if ! [ -f "build/notion/\$PLUGINSDIR/app-64.7z" ]; then
     7z x $NOTION_BINARY -obuild/notion
@@ -63,7 +76,7 @@ if [ "$1" == win ]; then
   if ! [ -d build/app ]; then
     asar extract build/bundle/resources/app.asar build/app
   fi
-elif [ "$1" == mac ]; then
+elif [ "$2" == mac ]; then
   # Extract the Notion disk image
   if ! [ -f 'build/notion/Notion Installer/Notion.app/Contents/Resources/app.asar' ]; then
     7z x $NOTION_DMG -obuild/notion
@@ -117,10 +130,44 @@ if ! [ -d build/dist ]; then
     --executable-name notion-desktop
 fi
 
-# Create Debian package
-electron-installer-debian \
+# Create Deb package
+if [ "$1" == deb ]; then
+  electron-installer-debian \
+    --src build/dist/app-linux-x64 \
+    --dest dist/installers/ \
+    --arch amd64 \
+    --options.productName Notion \
+    --options.icon build/dist/app-linux-x64/resources/app/icon.png
+fi
+
+# Create RPM package
+if [ "$1" == rpm ]; then
+  electron-installer-redhat \
   --src build/dist/app-linux-x64 \
-  --dest out \
-  --arch amd64 \
+  --dest dist/installers/ \
+  --arch x86_64 \
   --options.productName Notion \
-  --options.icon build/dist/app-linux-x64/resources/app/icon.png
+  --options.icon build/dist/app-linux-x64/resources/app/icon.png \
+  --options.license OtherLicense
+fi
+
+# Create Flatpak package
+if [ "$1" == flatpak ]; then
+  # Install Flatpak Dependencies
+  flatpak --user remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+  flatpak --user install -y flathub org.freedesktop.Sdk//20.08 org.freedesktop.Platform//20.08 org.electronjs.Electron2.BaseApp//20.08
+
+  # Build Flatpak package
+  DEBUG='electron-installer-flatpak' electron-installer-flatpak \
+  --src build/dist/app-linux-x64 \
+  --dest dist/installers/ \
+  --arch x86_64 \
+  --options.id so.notion.Notion \
+  --options.productName Notion \
+  --options.icon build/dist/app-linux-x64/resources/app/icon.png \
+  --options.base org.electronjs.Electron2.BaseApp \
+  --options.baseVersion 20.08 \
+  --options.runtime org.freedesktop.Platform \
+  --options.runtimeVersion 20.08 \
+  --options.sdk org.freedesktop.Sdk 
+fi

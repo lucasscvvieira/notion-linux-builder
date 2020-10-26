@@ -1,53 +1,44 @@
-# Notion DEB Builder
+# Notion For Linux
 
-Build Notion packages for Ubuntu/Debian, using resources extracted from Notion's Windows or macOS packages.
+Build Notion packages for Linux, using resources extracted from Notion's Windows or macOS packages.
 
 ## Prebuilt packages
 
-See [Releases](https://github.com/davidbailey00/notion-deb-builder/releases)
+See [Releases](https://github.com/lucasscvvieira/notion-linux-builder/releases)
 
 ## Requirements
 
-1. Install Node.js, e.g. using NVM:
+1. Install Docker:
 
    ```sh
    nvm install node
    ```
 
-2. Install `asar`, `electron-packager` and `electron-installer-debian`:
+2. Install `make`:
+
+   Using Ubuntu/Debian:
 
    ```sh
-   npm -g install asar electron-packager electron-installer-debian
+   sudo apt-get install -y make
    ```
 
-3. Install packages required for `7z`, `convert`, `fakeroot` and `dpkg`.
-
-   Using Ubuntu or Debian:
-
+   Using Fedora:
    ```sh
-   sudo apt install p7zip-full imagemagick fakeroot
-   ```
-
-   Or, using macOS:
-
-   ```sh
-   brew install p7zip imagemagick fakeroot dpkg
-   ```
-
-4. Download the latest Notion Windows or macOS installer, as `notion.exe` or `notion.dmg` respectively, e.g. using wget:
-
-   ```sh
-   wget 'https://desktop-release.notion-static.com/Notion%20Setup%202.0.6.exe' -O notion.exe
+   sudo dnf install -y make
    ```
 
 # Build
 
-Run the build script:
+- Run the build script for all packages:
 
 ```sh
-./build.sh <platform>
+make all
 ```
 
-replacing `<platform>` with either `win` or `mac`, depending on which sources you would like to build from.
+- Run the build script for specific packages:
 
-Once complete, you should have a DEB package in the `out` directory.
+```sh
+make build-(flatpak|deb|rpm)
+```
+
+- Change PLATFORM and URL to select from Windows or macOS based version
